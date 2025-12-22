@@ -50,7 +50,7 @@ export class WatsonLLM {
         },
         body: JSON.stringify({
           project_id: process.env.PROJECT_ID,
-          model_id: "meta-llama/llama-3-3-70b-instruct",
+          model_id: "mistralai/mistral-small-3-1-24b-instruct-2503",
           messages: fullMessages,
           temperature: 0.7,
           max_tokens: 1024,

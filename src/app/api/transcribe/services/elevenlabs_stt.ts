@@ -11,6 +11,7 @@ export async function elevenlabsSTT(
     contentType: "audio/wav",
   });
   form.append("model_id", "scribe_v2");
+  form.append("language", "ar");
 
   const res = await fetch(
     "https://api.elevenlabs.io/v1/speech-to-text",
