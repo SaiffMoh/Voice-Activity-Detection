@@ -21,20 +21,55 @@ export default function SpeechDetector() {
   const [hasGreeted, setHasGreeted] = useState(false);
   const vadRef = useRef<MicVAD | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     const initVAD = async () => {
       try {
         vadRef.current = await MicVAD.new({
+          // Enable browser noise suppression
+          stream: await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,      // Remove echo from AI playback
+              autoGainControl: true,        // Normalize volume levels
+              noiseSuppression: true,       // Browser filters background noise
+              sampleRate: 16000,
+            },
+          }),
+          
           onSpeechStart: () => {
             console.log('Speech detected');
             setIsSpeaking(true);
+            
+            // Interrupt AI if user starts speaking
+            if (isAiSpeaking && audioRef.current) {
+              console.log('User interrupted AI');
+              audioRef.current.pause();
+              setIsAiSpeaking(false);
+            }
           },
+          
           onSpeechEnd: async (audio) => {
-            console.log('Speech ended, received audio samples:', audio.length);
+            console.log('Speech ended - passed VAD validation:', {
+              audioSamples: audio.length,
+              durationSeconds: (audio.length / 16000).toFixed(2),
+            });
             setIsSpeaking(false);
             await processAudio(audio);
           },
+          
+          // VAD parameters optimized to reduce false positives
+          positiveSpeechThreshold: 0.8,    // 80% confidence required (vs default 0.5)
+          negativeSpeechThreshold: 0.6,    // Higher end threshold (vs default 0.35)
+          minSpeechFrames: 4,               // ~384ms minimum (filters brief noise)
+          redemptionFrames: 10,             // Natural pauses allowed (~960ms)
+          preSpeechPadFrames: 1,            // Minimal pre-padding
+          
+          // Optional: Monitor probabilities for debugging
+          // onFrameProcessed: (probabilities) => {
+          //   console.log('Frame probability:', probabilities.isSpeech.toFixed(2));
+          // },
         });
         
         setIsReady(true);
@@ -56,6 +91,9 @@ export default function SpeechDetector() {
     });
     audioRef.current = audioElement;
 
+    // Initialize AudioContext for potential echo cancellation
+    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+
     initVAD();
 
     return () => {
@@ -69,6 +107,9 @@ export default function SpeechDetector() {
         audioRef.current.removeEventListener('error', () => setIsAiSpeaking(false));
         audioRef.current.pause();
         audioRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
   }, []);
@@ -139,7 +180,7 @@ export default function SpeechDetector() {
       setError(err instanceof Error ? err.message : String(err));
       setIsAiThinking(false);
       setIsAiSpeaking(false);
-      setHasGreeted(false); // Allow retry
+      setHasGreeted(false);
     }
   };
 
@@ -381,7 +422,6 @@ export default function SpeechDetector() {
                 className={`absolute z-10 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 
                   bg-white hover:bg-slate-100 ${isListening ? 'ring-2 ring-blue-500' : ''}`}
                 aria-label={isListening ? 'Stop listening' : 'Start listening'}
-                disabled={isTranscribing || isAiThinking || isAiSpeaking}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

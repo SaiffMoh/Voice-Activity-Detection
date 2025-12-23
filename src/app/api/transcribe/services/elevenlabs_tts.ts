@@ -25,8 +25,8 @@ export async function elevenlabsTTS(
         },
         // Optimize for speed - lower latency = faster response
         optimize_streaming_latency: "4", // Max optimization (0-4)
-        // Optional: adjust output speed directly (0.25 to 4.0, default 1.0)
-        // output_speed: 1.2 // 20% faster - uncomment to use
+        // Adjust output speed (0.25 to 4.0, default 1.0). Values <1.0 slow speech.
+        output_speed: 0.85, // ~15% slower for clearer pacing
       }),
     }
   );

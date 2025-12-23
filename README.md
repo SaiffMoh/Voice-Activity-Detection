@@ -1,86 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This repository contains a Next.js app that demonstrates a conversational AI using
+voice input (speech-to-text), an LLM for responses, and text-to-speech for audio
+reply playback.
 
-## Getting Started
+**Quick start**
 
-First, run the development server:
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create a `.env.local` file in the project root and add required keys (see below).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run the app locally:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm dev
+```
 
-## Learn More
+Open http://localhost:3000 in your browser.
 
-To learn more about Next.js, take a look at the following resources:
+**Environment variables**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create `.env.local` and set these values (do not commit secrets):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **ELEVENLABS_API_KEY**: API key for ElevenLabs (used for STT/TTS in this project).
+- **ELEVENLABS_VOICE_ID**: Voice ID used for TTS output.
+- **WATSON_APIKEY**: IBM Cloud API key used to obtain an access token for the Watson/IBM LLM.
+- **PROJECT_ID**: Watson project id used when calling the Watson LLM endpoint.
 
-## Deploy on Vercel
+Notes: The project currently uses ElevenLabs for speech-to-text and text-to-speech
+and an IBM Watson endpoint (wrapped in `watson_llm.ts`) as the LLM. Replace or
+configure providers as needed in `src/app/api/transcribe/services`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**How to use**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Click the microphone button to start voice activity detection (VAD).
+- The frontend captures audio when speech is detected, sends the recorded audio
+   to the backend at `/api/transcribe` as FormData, then:
+   - the server runs STT (ElevenLabs) to get a transcript,
+   - sends the transcript (plus conversation history) to the LLM,
+   - converts the LLM response to speech (ElevenLabs TTS), and returns audio.
+- The frontend plays the returned WAV audio and displays transcript/response in
+   the UI.
 
-## AI Conversation with Speech Recognition and TTS
+**API behavior (/api/transcribe)**
 
-This application uses:
-- [Voice Activity Detection (VAD)](https://github.com/ricky0123/vad) to detect speech
-- [Groq API](https://groq.com/) for speech transcription with Whisper and LLM responses with Llama
-- [Cartesia API](https://cartesia.ai/) for Text-to-Speech synthesis
+- POST with `Content-Type: application/json` and `{ greeting: true }` will ask
+   the LLM to produce a greeting and returns `audio/wav` with an `X-Response`
+   header containing the response text (URL-encoded).
+- POST with FormData including `audio` (file) and optional `messageHistory`
+   will transcribe the audio, pass the transcript to the LLM with history, and
+   return `audio/wav` with `X-Transcript` and `X-Response` headers.
 
-### Setup
+**Files of interest**
 
-1. Get API keys from:
-   - [Groq](https://console.groq.com/keys)
-   - [Cartesia](https://cartesia.ai/) (for TTS)
-   
-2. Create a `.env.local` file in the root directory and add your API keys:
-   ```
-   GROQ_API_KEY=your_groq_api_key_here
-   CARTESIA_API_KEY=your_cartesia_api_key_here
-   ```
+- `src/app/components/SpeechDetector.tsx` — frontend voice detection, recording,
+   transcription, playback UI.
+- `src/app/api/transcribe/route.ts` — server endpoint glue that runs STT, LLM,
+   and TTS.
+- `src/app/api/transcribe/services/*` — provider integrations (ElevenLabs, Watson).
 
-3. Install dependencies:
-   ```
-   pnpm install
-   ```
+**Security & notes**
 
-4. Run the development server:
-   ```
-   pnpm dev
-   ```
+- Keep API keys out of version control. Use `.env.local` or a secret store for
+   deployments.
+- The project includes example integrations; verify and harden network/security
+   settings before deploying to production.
 
-### Usage
+If you'd like, I can also:
 
-1. Open the application in your browser
-2. Click the microphone button to start listening for speech
-3. Speak into your microphone - when you pause speaking:
-   - Your speech will be transcribed using Whisper
-   - The transcript will be sent to the LLM for a response
-   - The response will be converted to speech via TTS
-   - The AI will "speak" the response with a visual animation
+- add a concise `Makefile`/`package.json` scripts section for build/test tasks,
+- create a short troubleshooting section for microphone permissions.
 
-### Features
-
-- Real-time voice activity detection
-- Automatic speech recording when speech is detected
-- Speech transcription using Whisper Large V3 model
-- LLM response generation with Llama 3
-- Text-to-Speech synthesis for natural voice responses
-- Visual speaking animation and UI feedback
-- Conversation history display
-- Full voice conversation with an AI assistant
