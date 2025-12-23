@@ -26,6 +26,8 @@ export default function SpeechDetector() {
   useEffect(() => {
     const initVAD = async () => {
       try {
+        console.log('Initializing Silero VAD V5...');
+        
         vadRef.current = await MicVAD.new({
           // Enable browser noise suppression
           stream: await navigator.mediaDevices.getUserMedia({
@@ -38,8 +40,11 @@ export default function SpeechDetector() {
             },
           }),
           
+          // ===== USE SILERO V5 MODEL =====
+          model: "v5",  // Silero V5 - faster processing (32ms frames vs 96ms)
+          
           onSpeechStart: () => {
-            console.log('Speech detected');
+            console.log('✓ Speech detected by Silero VAD V5');
             setIsSpeaking(true);
             
             // Interrupt AI if user starts speaking
@@ -51,7 +56,7 @@ export default function SpeechDetector() {
           },
           
           onSpeechEnd: async (audio) => {
-            console.log('Speech ended - passed VAD validation:', {
+            console.log('✓ Speech ended - validated by Silero V5:', {
               audioSamples: audio.length,
               durationSeconds: (audio.length / 16000).toFixed(2),
             });
@@ -59,22 +64,41 @@ export default function SpeechDetector() {
             await processAudio(audio);
           },
           
-          // VAD parameters optimized to reduce false positives
-          positiveSpeechThreshold: 0.8,    // 80% confidence required (vs default 0.5)
-          negativeSpeechThreshold: 0.6,    // Higher end threshold (vs default 0.35)
-          minSpeechFrames: 4,               // ~384ms minimum (filters brief noise)
-          redemptionFrames: 10,             // Natural pauses allowed (~960ms)
-          preSpeechPadFrames: 1,            // Minimal pre-padding
+          // ===== V5 PARAMETERS (in milliseconds, not frames!) =====
+          // These are optimized for reducing false positives from background noise
           
-          // Optional: Monitor probabilities for debugging
-          // onFrameProcessed: (probabilities) => {
-          //   console.log('Frame probability:', probabilities.isSpeech.toFixed(2));
-          // },
+          // Speech probability thresholds (0-1)
+          positiveSpeechThreshold: 0.6,    // 60% confidence to start speech
+                                            // V5 default is 0.3, we raise it to reduce false positives
+          
+          negativeSpeechThreshold: 0.5,    // < 50% to end speech
+                                            // V5 default is 0.25, we raise it for cleaner cutoff
+          
+          // Minimum speech duration to avoid false positives
+          minSpeechMs: 400,                 // 400ms minimum speech
+                                            // Filters brief noise but allows "thank you"
+                                            // V5 default is 400ms
+          
+          // Redemption period - silence duration before ending speech
+          redemptionMs: 800,                // 800ms of silence allowed
+                                            // Allows natural pauses like "um", breathing
+                                            // V5 default is 1400ms, we reduce for faster response
+          
+          // Pre-speech padding
+          preSpeechPadMs: 100,              // 100ms of audio before speech start
+                                            // V5 default is 800ms, we reduce to capture less ambient noise
+          
+          // Optional: Monitor V5 probabilities for debugging
+          onFrameProcessed: (probabilities) => {
+            // Uncomment to see real-time Silero V5 probabilities (0-1):
+            // console.log('Silero V5 probability:', probabilities.isSpeech.toFixed(3));
+          },
         });
         
+        console.log('✅ Silero VAD V5 initialized successfully');
         setIsReady(true);
       } catch (e) {
-        console.error('Failed to initialize VAD:', e);
+        console.error('❌ Failed to initialize Silero VAD V5:', e);
         setError(e instanceof Error ? e.message : String(e));
       }
     };
