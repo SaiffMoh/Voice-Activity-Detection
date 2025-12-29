@@ -1,75 +1,121 @@
-This repository contains a Next.js app that demonstrates a conversational AI using
-voice input (speech-to-text), an LLM for responses, and text-to-speech for audio
-reply playback.
+# Voice Agent for AG Motors (TypeScript)
 
-**Quick start**
+---
 
-1. Install dependencies:
+## 1️⃣ Project Domain (Business View)
+
+This repository contains the Voice Agent for AG Motors — a web-based, TypeScript voice assistant used to handle spoken interactions for showroom kiosks, customer support, and in-vehicle demos. The agent listens for speech, transcribes user input (Arabic-focused), reasons with a streamed LLM, and responds with synthesized audio.
+
+Key value propositions:
+- Real-time spoken interactions for customers and staff.
+- Arabic-first STT/TTS and conversational flow.
+- Lightweight client-side voice activity detection to reduce cloud calls and latency.
+
+---
+
+## 2️⃣ Project Workflow (Technical View)
+
+High-level flow:
+
+- Browser microphone -> Silero VAD (client) detects voice segments.
+- Captured PCM -> client converts to WAV and uploads to Next.js API route `/api/transcribe`.
+- Server sends audio to ElevenLabs Speech-to-Text (STT) -> receives transcript.
+- Transcript and message history are streamed to Watson LLM (server-side streaming).
+- Watson LLM streaming output is gathered and converted to audio via ElevenLabs Text-to-Speech (TTS).
+- Server returns a WAV response (audio/wav) and headers with transcript/response metadata; client plays the returned audio.
+
+![Workflow](public/voice.png)
+---
+
+## 3️⃣ Inputs vs Outputs
+
+Inputs:
+- Microphone audio (captured client-side, converted to 16 kHz WAV)
+- `messageHistory` (JSON array of prior chat messages)
+- Environment variables / API keys (`ELEVENLABS_API_KEY`, `WATSON_APIKEY`, `PROJECT_ID`, `ELEVENLABS_VOICE_ID`)
+
+Outputs:
+- `audio/wav` response (TTS audio) returned from `/api/transcribe`
+- Response headers: `X-Transcript` (transcribed text) and `X-Response` (LLM text)
+- Client-side UI messages state (`messages` array) updated with user + assistant content
+
+---
+
+## 4️⃣ Used Packages / Purpose
+
+| Package / Technology | Purpose |
+| -------------------- | ------- |
+| Next.js (TypeScript) | Web framework, API routes, server-side runtime |
+| React (client)       | UI and SpeechDetector component |
+| Silero VAD (web VAD) | Client-side voice activity detection to capture segments |
+| ElevenLabs API       | Speech-to-text (STT) and Text-to-speech (TTS) |
+| Watson ML API        | Streaming LLM for reasoning and response generation |
+| node-fetch           | Server-side HTTP requests to external APIs |
+| form-data            | Multipart uploads to STT endpoints |
+
+Files of interest:
+- `src/app/api/transcribe/route.ts` — main API route handling STT/LLM/TTS flow
+- `src/app/api/transcribe/services/elevenlabs_stt.ts` — ElevenLabs STT helper
+- `src/app/api/transcribe/services/elevenlabs_tts.ts` — ElevenLabs TTS helper
+- `src/app/api/transcribe/services/watson_llm.ts` — Watson streaming wrapper
+- `src/app/components/SpeechDetector.tsx` — client-side VAD, audio capture, upload and playback
+
+---
+
+## 5️⃣ Current Status
+
+- Implemented: client-side VAD, audio capture/convert-to-WAV, Next.js API route, STT via ElevenLabs, streaming LLM via Watson, TTS via ElevenLabs, playback handling on client.
+- No formal test suite included in the repository (no automated tests referenced).
+- Known considerations / issues:
+  - Requires valid API keys to function (ElevenLabs & IBM Watson). See `.env.local` in attachments.
+  - Network and streaming reliability may vary depending on Watson/ElevenLabs availability.
+  - Client-side audio handling and sample-rate conversions are implemented in `SpeechDetector.tsx` — check browser compatibility.
+
+---
+
+## 6️⃣ Next Steps
+
+- Add robust error handling and exponential backoff for external API calls.
+- Add automated tests for the API route and client audio conversion utilities.
+- Add streaming playback optimization to pipe Watson tokens to TTS earlier (reduce perceived latency).
+- Add CI checks for environment variable presence and build validation.
+
+---
+
+## 7️⃣ Steps to Run Locally
+
+Prerequisites:
+- Node.js 18+ recommended
+- Valid API keys: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `WATSON_APIKEY`, `PROJECT_ID` (place them in `.env.local`)
+
+Install and run:
 
 ```bash
-pnpm install
+npm install
+npm run dev
 ```
 
-2. Create a `.env.local` file in the project root and add required keys (see below).
+Example `.env.local` variables (do NOT commit your real keys):
 
-3. Run the app locally:
-
-```bash
-pnpm dev
+```
+ELEVENLABS_API_KEY=your-elevenlabs-key
+ELEVENLABS_VOICE_ID=your-voice-id
+WATSON_APIKEY=your-watson-apikey
+PROJECT_ID=your-watson-project-id
 ```
 
-Open http://localhost:3000 in your browser.
+Client quick test flow:
+- Open the app in the browser when dev server is running.
+- Allow microphone access. The `SpeechDetector` UI will initialize Silero VAD.
+- When speaking, the client will capture audio, send to `/api/transcribe`, and play back the assistant's response.
 
-**Environment variables**
+---
 
-Create `.env.local` and set these values (do not commit secrets):
+## Contact / Maintainers
 
-- **ELEVENLABS_API_KEY**: API key for ElevenLabs (used for STT/TTS in this project).
-- **ELEVENLABS_VOICE_ID**: Voice ID used for TTS output.
-- **WATSON_APIKEY**: IBM Cloud API key used to obtain an access token for the Watson/IBM LLM.
-- **PROJECT_ID**: Watson project id used when calling the Watson LLM endpoint.
+- Project: Voice Agent for AG Motors
+- Primary files for changes: see "Files of interest" above.
 
-Notes: The project currently uses ElevenLabs for speech-to-text and text-to-speech
-and an IBM Watson endpoint (wrapped in `watson_llm.ts`) as the LLM. Replace or
-configure providers as needed in `src/app/api/transcribe/services`.
+---
 
-**How to use**
-
-- Click the microphone button to start voice activity detection (VAD).
-- The frontend captures audio when speech is detected, sends the recorded audio
-   to the backend at `/api/transcribe` as FormData, then:
-   - the server runs STT (ElevenLabs) to get a transcript,
-   - sends the transcript (plus conversation history) to the LLM,
-   - converts the LLM response to speech (ElevenLabs TTS), and returns audio.
-- The frontend plays the returned WAV audio and displays transcript/response in
-   the UI.
-
-**API behavior (/api/transcribe)**
-
-- POST with `Content-Type: application/json` and `{ greeting: true }` will ask
-   the LLM to produce a greeting and returns `audio/wav` with an `X-Response`
-   header containing the response text (URL-encoded).
-- POST with FormData including `audio` (file) and optional `messageHistory`
-   will transcribe the audio, pass the transcript to the LLM with history, and
-   return `audio/wav` with `X-Transcript` and `X-Response` headers.
-
-**Files of interest**
-
-- `src/app/components/SpeechDetector.tsx` — frontend voice detection, recording,
-   transcription, playback UI.
-- `src/app/api/transcribe/route.ts` — server endpoint glue that runs STT, LLM,
-   and TTS.
-- `src/app/api/transcribe/services/*` — provider integrations (ElevenLabs, Watson).
-
-**Security & notes**
-
-- Keep API keys out of version control. Use `.env.local` or a secret store for
-   deployments.
-- The project includes example integrations; verify and harden network/security
-   settings before deploying to production.
-
-If you'd like, I can also:
-
-- add a concise `Makefile`/`package.json` scripts section for build/test tasks,
-- create a short troubleshooting section for microphone permissions.
-
+_Generated from repository source files: `SpeechDetector.tsx`, `route.ts`, and service helpers (ElevenLabs + Watson)._
